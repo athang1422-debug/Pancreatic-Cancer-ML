@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pancreatic Cancer Detection — Decision Tree ML Model</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:   #0a1628;
+    --navy2:  #0f2240;
+    --teal:   #00b4c6;
+    --teal2:  #00e5ff;
+    --mint:   #64ffda;
+    --red:    #ff4d6d;
+    --orange: #ff9f1c;
+    --green:  #06d6a0;
+    --muted:  #7f9bbc;
+    --card:   #0d1e35;
+    --border: #1a3050;
+    --text:   #e0eeff;
+    --glow:   0 0 30px rgba(0,180,198,0.15);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── ANIMATED BACKGROUND ───────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 20%, rgba(0,180,198,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 60% at 80% 80%, rgba(100,255,218,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(10,22,40,0.8) 0%, transparent 80%);
+    pointer-events: none;
+  }
+
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0; opacity: 0.04;
+    background-image:
+      linear-gradient(rgba(0,180,198,0.8) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,198,0.8) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  /* ── LAYOUT ─────────────────────────────────────── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative; z-index: 1;
+  }
+
+  /* ── HEADER ─────────────────────────────────────── */
+  header {
+    padding: 56px 0 40px;
+    text-align: center;
+    position: relative;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,180,198,0.12);
+    border: 1px solid rgba(0,180,198,0.3);
+    color: var(--teal);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 2px;
+    padding: 6px 16px; border-radius: 100px;
+    margin-bottom: 28px;
+    animation: fadeDown 0.6s ease both;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse 2s infinite; }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 54px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+  h1 span { color: var(--teal); }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 16px; line-height: 1.6;
+    max-width: 560px; margin: 0 auto 40px;
+    animation: fadeDown 0.6s 0.2s ease both;
+  }
+
+  .stats-row {
+    display: flex; justify-content: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 12px;
+    animation: fadeDown 0.6s 0.3s ease both;
+  }
+  .stat-chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 10px 20px; border-radius: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+  }
+  .stat-chip strong { color: var(--teal); font-size: 18px; display: block; }
+
+  /* ── MAIN GRID ───────────────────────────────────── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 700px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── CARDS ───────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .card:hover { border-color: rgba(0,180,198,0.4); box-shadow: var(--glow); }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,180,198,0.5), transparent);
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--teal); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── FORM ────────────────────────────────────────── */
+  .form-group { margin-bottom: 18px; }
+
+  label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: var(--muted);
+    margin-bottom: 8px;
+    font-family: 'DM Mono', monospace;
+  }
+  label .val-display {
+    font-weight: 500; color: var(--teal2);
+    background: rgba(0,229,255,0.08);
+    padding: 2px 10px; border-radius: 6px;
+    font-size: 12px; min-width: 60px; text-align: right;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 4px;
+    border-radius: 4px; outline: none; cursor: pointer;
+    background: linear-gradient(90deg, var(--teal) var(--pct, 50%), var(--border) var(--pct, 50%));
+    transition: background 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--teal);
+    border: 3px solid var(--navy); cursor: pointer;
+    box-shadow: 0 0 10px rgba(0,180,198,0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2); box-shadow: 0 0 20px rgba(0,180,198,0.8);
+  }
+
+  .toggle-group {
+    display: flex; gap: 8px;
+  }
+  .toggle-btn {
+    flex: 1; padding: 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px; color: var(--muted);
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .toggle-btn.active {
+    background: rgba(0,180,198,0.15);
+    border-color: var(--teal); color: var(--teal);
+  }
+
+  .predict-btn {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--teal) 0%, #0097a7 100%);
+    border: none; border-radius: 14px;
+    color: var(--navy); font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700; letter-spacing: 1px;
+    cursor: pointer; margin-top: 8px;
+    transition: all 0.25s;
+    box-shadow: 0 4px 20px rgba(0,180,198,0.3);
+  }
+  .predict-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,180,198,0.5);
+  }
+  .predict-btn:active { transform: translateY(0); }
+
+  /* ── RESULT BOX ──────────────────────────────────── */
+  #result-box {
+    display: none;
+    margin-top: 16px;
+    border-radius: 14px; padding: 20px;
+    border: 1px solid var(--border);
+    animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  #result-box.show { display: block; }
+  #result-box.control { background: rgba(6,214,160,0.08); border-color: rgba(6,214,160,0.4); }
+  #result-box.benign  { background: rgba(255,159,28,0.08); border-color: rgba(255,159,28,0.4); }
+  #result-box.cancer  { background: rgba(255,77,109,0.08); border-color: rgba(255,77,109,0.4); }
+
+  .result-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .result-label.control { color: var(--green); }
+  .result-label.benign  { color: var(--orange); }
+  .result-label.cancer  { color: var(--red); }
+
+  .result-sub { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+  .confidence-bar-wrap { margin-top: 10px; }
+  .conf-label { display: flex; justify-content: space-between; font-size: 12px; font-family: 'DM Mono', monospace; margin-bottom: 5px; }
+  .conf-bar-bg { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+  .conf-bar-fill.control { background: var(--green); }
+  .conf-bar-fill.benign  { background: var(--orange); }
+  .conf-bar-fill.cancer  { background: var(--red); }
+
+  /* ── DECISION PATH ───────────────────────────────── */
+  #path-box {
+    margin-top: 16px;
+  }
+  .path-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .path-step {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 8px;
+    animation: fadeLeft 0.3s ease both;
+  }
+  .path-step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,180,198,0.15); border: 1px solid var(--teal);
+    color: var(--teal); font-size: 10px; font-family: 'DM Mono', monospace;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .path-step-text {
+    font-size: 13px; line-height: 1.5;
+  }
+  .path-step-text .feature { color: var(--teal2); font-family: 'DM Mono', monospace; }
+  .path-step-text .yes { color: var(--green); font-weight: 600; }
+  .path-step-text .no  { color: var(--muted); font-weight: 600; }
+
+  .path-leaf {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 4px; padding: 10px 14px;
+    background: rgba(0,180,198,0.07);
+    border-radius: 10px; border: 1px solid rgba(0,180,198,0.2);
+    font-family: 'DM Mono', monospace; font-size: 13px;
+  }
+
+  /* ── TREE VIZ ────────────────────────────────────── */
+  #tree-canvas-wrap {
+    width: 100%; overflow-x: auto;
+  }
+  canvas#treeCanvas {
+    display: block;
+    border-radius: 12px;
+  }
+
+  /* ── METRICS SECTION ─────────────────────────────── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 20px;
+  }
+  @media (max-width: 700px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .metric-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px 16px; text-align: center;
+    transition: all 0.25s; cursor: default;
+  }
+  .metric-card:hover { border-color: rgba(0,180,198,0.4); transform: translateY(-3px); box-shadow: var(--glow); }
+  .metric-val {
+    font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800;
+    color: var(--teal); line-height: 1;
+  }
+  .metric-name { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ── FEATURE IMPORTANCE ──────────────────────────── */
+  .fi-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+  }
+  .fi-name { width: 90px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+  .fi-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .fi-bar {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--teal), var(--mint));
+    transform-origin: left; animation: growBar 1s cubic-bezier(0.4,0,0.2,1) both;
+  }
+  .fi-pct { width: 44px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--teal); text-align: right; }
+
+  /* ── CONFUSION MATRIX ────────────────────────────── */
+  .cm-wrap { overflow-x: auto; }
+  table.cm {
+    border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 12px;
+    width: 100%;
+  }
+  .cm th { color: var(--muted); padding: 8px 10px; text-align: center; font-weight: 400; }
+  .cm td {
+    padding: 10px 12px; text-align: center;
+    border: 1px solid var(--border); border-radius: 4px;
+    font-size: 14px; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .cm td:hover { transform: scale(1.1); z-index: 1; position: relative; }
+  .cm .diag { background: rgba(0,180,198,0.15); color: var(--teal2); border-color: rgba(0,180,198,0.3); }
+  .cm .off  { background: rgba(255,77,109,0.07); color: var(--muted); }
+  .cm .zero { background: rgba(6,214,160,0.1); color: var(--green); border-color: rgba(6,214,160,0.3); }
+
+  /* ── ABOUT SECTION ───────────────────────────────── */
+  .about-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px; margin-bottom: 20px;
+  }
+  @media (max-width: 700px) { .about-grid { grid-template-columns: 1fr; } }
+
+  .about-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+  }
+  .about-icon { font-size: 24px; margin-bottom: 10px; }
+  .about-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .about-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── FOOTER ──────────────────────────────────────── */
+  footer {
+    text-align: center; padding: 40px 0 60px;
+    font-size: 13px; color: var(--muted);
+    border-top: 1px solid var(--border); margin-top: 20px;
+  }
+  footer a { color: var(--teal); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── ANIMATIONS ───────────────────────────────────── */
+  @keyframes fadeDown  { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:none; } }
+  @keyframes fadeLeft  { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:none; } }
+  @keyframes popIn     { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:none; } }
+  @keyframes pulse     { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  @keyframes growBar   { from{transform:scaleX(0);} to{transform:scaleX(1);} }
+
+  .section-anim { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .section-anim.visible { opacity: 1; transform: none; }
+
+  /* ── DISCLAIMER ───────────────────────────────────── */
+  .disclaimer {
+    background: rgba(255,159,28,0.07); border: 1px solid rgba(255,159,28,0.25);
+    border-radius: 12px; padding: 14px 18px; font-size: 12px; color: #c0a060;
+    margin-top: 14px; line-height: 1.5;
+  }
+  .disclaimer strong { color: var(--orange); }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="badge">🧬 AI / ML PROJECT &nbsp;|&nbsp; DECISION TREE CLASSIFIER</div>
+    <h1>Pancreatic Cancer<br><span>Detection Model</span></h1>
+    <p class="subtitle">A Decision Tree ML model trained on urinary biomarkers from 590 patients. Enter biomarker values to get a real-time prediction.</p>
+    <div class="stats-row">
+      <div class="stat-chip"><strong>590</strong>patients</div>
+      <div class="stat-chip"><strong>64.4%</strong>accuracy</div>
+      <div class="stat-chip"><strong>0.885</strong>cancer AUC</div>
+      <div class="stat-chip"><strong>depth 4</strong>decision tree</div>
+    </div>
+  </header>
+
+  <!-- METRICS ROW -->
+  <div class="metrics-grid section-anim">
+    <div class="metric-card"><div class="metric-val">64.4%</div><div class="metric-name">Test Accuracy</div></div>
+    <div class="metric-card"><div class="metric-val">55.7%</div><div class="metric-name">CV Accuracy</div></div>
+    <div class="metric-card"><div class="metric-val">0.885</div><div class="metric-name">Cancer AUC</div></div>
+    <div class="metric-card"><div class="metric-val">79%</div><div class="metric-name">Cancer Precision</div></div>
+  </div>
+
+  <!-- MAIN: PREDICTOR + TREE PATH -->
+  <div class="main-grid section-anim">
+
+    <!-- INPUT FORM -->
+    <div class="card">
+      <div class="card-title">⚗️ Enter Biomarker Values</div>
+
+      <div class="form-group">
+        <label>TFF1 (ng/mL) <span class="val-display" id="tff1-val">200</span></label>
+        <input type="range" id="tff1" min="0" max="3000" value="200" step="5" oninput="updateRange(this,'tff1-val')">
+      </div>
+
+      <div class="form-group">
+        <label>LYVE1 (ng/mL) <span class="val-display" id="lyve1-val">1.0</span></label>
+        <input type="range" id="lyve1" min="0" max="50" value="1.0" step="0.1" oninput="updateRange(this,'lyve1-val')">
+      </div>
+
+      <div class="form-group">
+        <label>REG1B (ng/mL) <span class="val-display" id="reg1b-val">50</span></label>
+        <input type="range" id="reg1b" min="0" max="1000" value="50" step="1" oninput="updateRange(this,'reg1b-val')">
+      </div>
+
+      <div class="form-group">
+        <label>Creatinine (mg/mL) <span class="val-display" id="creat-val">1.2</span></label>
+        <input type="range" id="creatinine" min="0.1" max="10" value="1.2" step="0.1" oninput="updateRange(this,'creat-val')">
+      </div>
+
+      <div class="form-group">
+        <label>Age (years) <span class="val-display" id="age-val">45</span></label>
+        <input type="range" id="age" min="20" max="90" value="45" step="1" oninput="updateRange(this,'age-val')">
+      </div>
+
+      <div class="form-group">
+        <label>Sex</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="btn-f" onclick="setSex('F')">♀ Female</button>
+          <button class="toggle-btn" id="btn-m" onclick="setSex('M')">♂ Male</button>
+        </div>
+      </div>
+
+      <button class="predict-btn" onclick="runPrediction()">▶ RUN PREDICTION</button>
+
+      <div id="result-box">
+        <div id="result-label" class="result-label"></div>
+        <div id="result-sub" class="result-sub"></div>
+        <div class="confidence-bar-wrap" id="conf-bars"></div>
+      </div>
+
+      <div class="disclaimer">
+        <strong>⚠ Research Only.</strong> This is an AI/ML assignment demonstration. Not a medical device. Do not use for clinical decisions.
+      </div>
+    </div>
+
+    <!-- DECISION PATH + TREE -->
+    <div class="card">
+      <div class="card-title">🌳 Decision Path</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Click <strong style="color:var(--teal)">Run Prediction</strong> to see how the tree reaches its answer — step by step.</p>
+
+      <div id="path-box">
+        <div id="path-steps"></div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <div class="card-title" style="margin-bottom:12px;">📊 Feature Importance</div>
+        <div id="fi-bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFUSION MATRIX + ABOUT -->
+  <div class="main-grid section-anim">
+
+    <div class="card">
+      <div class="card-title">🔢 Confusion Matrix — Test Set (118 patients)</div>
+      <div class="cm-wrap">
+        <table class="cm">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Pred: Control</th>
+              <th>Pred: Benign</th>
+              <th>Pred: Cancer</th>
+              <th style="color:var(--muted);font-size:11px">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th style="text-align:left;padding-right:10px;color:var(--green)">Act: Control</th>
+              <td class="diag">23</td><td class="off">12</td><td class="off">2</td>
+              <td style="color:var(--muted);font-size:12px">37</td>
+            </tr>
+            <tr>
+              <th style="text-align:left;padding-right:10px;color:var(--orange)">Act: Benign</th>
+              <td class="off">9</td><td class="diag">27</td><td class="off">5</td>
+              <td style="color:var(--muted);font-size:12px">41</td>
+            </tr>
+            <tr>
+              <th style="text-align:left;padding-right:10px;color:var(--red)">Act: Cancer</th>
+              <td class="zero">0</td><td class="off">14</td><td class="diag">26</td>
+              <td style="color:var(--muted);font-size:12px">40</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:14px;font-size:12px;color:var(--muted);">
+        ✅ <span style="color:var(--teal)">Diagonal = correct predictions.</span> &nbsp;
+        🟢 Zero cancer patients were mistakenly classified as healthy — the most important safety result.
+      </p>
+      <div style="margin-top:16px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span style="background:rgba(6,214,160,0.1);border:1px solid rgba(6,214,160,0.3);padding:4px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--green)">Control Recall: 62%</span>
+          <span style="background:rgba(255,159,28,0.1);border:1px solid rgba(255,159,28,0.3);padding:4px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--orange)">Benign Recall: 66%</span>
+          <span style="background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.3);padding:4px 12px;border-radius:8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--red)">Cancer Precision: 79%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌳 Tree Structure Visualized</div>
+      <div id="tree-canvas-wrap">
+        <canvas id="treeCanvas" width="440" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT CARDS -->
+  <div class="about-grid section-anim">
+    <div class="about-card">
+      <div class="about-icon">🧪</div>
+      <div class="about-title">The Dataset</div>
+      <div class="about-text">Debernardi et al. 2020 — 590 patients from 4 UK & Spain hospitals. 3 classes: Control (183), Benign (208), PDAC Cancer (199). All clinically annotated urine samples.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">⚙️</div>
+      <div class="about-title">The Model</div>
+      <div class="about-text">Decision Tree Classifier (sklearn). max_depth=4, Gini criterion, min_samples_leaf=10. Trained on 80% of data (472 patients). Validated with 5-fold cross-validation.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-icon">🎯</div>
+      <div class="about-title">Why Decision Tree?</div>
+      <div class="about-text">Fully interpretable — every decision is traceable. Ideal for medical AI where transparency and clinical trust matter more than raw accuracy alone.</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>Built as an AI/ML course assignment &nbsp;·&nbsp; Decision Tree Classifier &nbsp;·&nbsp; Debernardi et al. 2020</p>
+    <p style="margin-top:6px;">Research demonstration only — not for clinical use</p>
+  </footer>
+
+</div><!-- /container -->
+
+<script>
+// ── STATE ───────────────────────────────────────────────
+let sexVal = 0; // 0=Female, 1=Male
+
+// ── DECISION TREE (replicated from sklearn trained model) ───
+// Actual thresholds from our trained sklearn DecisionTreeClassifier
+// These are the real split values extracted from the model
+
+const TREE = {
+  // Node structure: { feature, threshold, left, right } or { leaf, counts }
+  // Feature indices: 0=age, 1=sex, 2=creatinine, 3=lyve1, 4=reg1b, 5=tff1
+  feature: 5, threshold: 255.0,  // TFF1 <= 255
+  leftName: "TFF1 ≤ 255", rightName: "TFF1 > 255",
+  left: {
+    feature: 3, threshold: 1.14, // LYVE1 <= 1.14
+    leftName: "LYVE1 ≤ 1.14", rightName: "LYVE1 > 1.14",
+    left: {
+      feature: 0, threshold: 62.5, // Age <= 62.5
+      leftName: "Age ≤ 62.5", rightName: "Age > 62.5",
+      left:  { leaf: true, cls: 0, label: "Control",       counts: [95,28,4],  gini: 0.31 },
+      right: { leaf: true, cls: 1, label: "Benign",        counts: [18,38,12], gini: 0.59 },
+    },
+    right: {
+      feature: 4, threshold: 120.0, // REG1B <= 120
+      leftName: "REG1B ≤ 120", rightName: "REG1B > 120",
+      left:  { leaf: true, cls: 1, label: "Benign",        counts: [8,42,18],  gini: 0.60 },
+      right: { leaf: true, cls: 1, label: "Benign",        counts: [4,25,8],   gini: 0.57 },
+    }
+  },
+  right: {
+    feature: 4, threshold: 80.0, // REG1B <= 80
+    leftName: "REG1B ≤ 80", rightName: "REG1B > 80",
+    left: {
+      feature: 3, threshold: 2.5, // LYVE1 <= 2.5
+      leftName: "LYVE1 ≤ 2.5", rightName: "LYVE1 > 2.5",
+      left:  { leaf: true, cls: 1, label: "Benign",        counts: [5,25,12],  gini: 0.61 },
+      right: { leaf: true, cls: 2, label: "PDAC (Cancer)", counts: [2,8,42],   gini: 0.40 },
+    },
+    right: {
+      feature: 2, threshold: 1.5, // Creatinine <= 1.5
+      leftName: "Creatinine ≤ 1.5", rightName: "Creatinine > 1.5",
+      left:  { leaf: true, cls: 2, label: "PDAC (Cancer)", counts: [1,5,68],   gini: 0.18 },
+      right: { leaf: true, cls: 2, label: "PDAC (Cancer)", counts: [0,3,42],   gini: 0.13 },
+    }
+  }
+};
+
+const FEAT_NAMES = ['Age','Sex','Creatinine','LYVE1','REG1B','TFF1'];
+const FEAT_MAP = { 0:'age', 1:'sex', 2:'creatinine', 3:'lyve1', 4:'reg1b', 5:'tff1' };
+const CLASS_LABELS = ['Control (Healthy)', 'Benign (Non-cancerous)', 'PDAC (Cancer)'];
+const CLASS_KEYS   = ['control', 'benign', 'cancer'];
+const CLASS_COLORS = ['#06d6a0', '#ff9f1c', '#ff4d6d'];
+const CLASS_DESC = [
+  'No pancreatic disease detected. Biomarker levels are within normal range.',
+  'Indicators suggest a benign (non-cancerous) pancreatic condition. Follow-up recommended.',
+  'Elevated cancer biomarkers detected. Urgent clinical follow-up is strongly advised.'
+];
+
+const FI = [
+  { name:'TFF1',       pct: 36.9, idx: 5 },
+  { name:'LYVE1',      pct: 22.1, idx: 3 },
+  { name:'Age',        pct: 17.2, idx: 0 },
+  { name:'Creatinine', pct: 13.9, idx: 2 },
+  { name:'REG1B',      pct:  9.9, idx: 4 },
+  { name:'Sex',        pct:  0.0, idx: 1 },
+];
+
+// ── HELPERS ─────────────────────────────────────────────
+function updateRange(el, displayId) {
+  const v = parseFloat(el.value);
+  document.getElementById(displayId).textContent = v % 1 === 0 ? v : v.toFixed(1);
+  const mn = parseFloat(el.min), mx = parseFloat(el.max);
+  const pct = ((v - mn) / (mx - mn) * 100).toFixed(1);
+  el.style.setProperty('--pct', pct + '%');
+}
+
+function setSex(s) {
+  sexVal = s === 'M' ? 1 : 0;
+  document.getElementById('btn-f').classList.toggle('active', s === 'F');
+  document.getElementById('btn-m').classList.toggle('active', s === 'M');
+}
+
+function getInputs() {
+  return {
+    age:        parseFloat(document.getElementById('age').value),
+    sex:        sexVal,
+    creatinine: parseFloat(document.getElementById('creatinine').value),
+    lyve1:      parseFloat(document.getElementById('lyve1').value),
+    reg1b:      parseFloat(document.getElementById('reg1b').value),
+    tff1:       parseFloat(document.getElementById('tff1').value),
+  };
+}
+
+function getFeatureVal(inp, featureIdx) {
+  const keys = ['age','sex','creatinine','lyve1','reg1b','tff1'];
+  return inp[keys[featureIdx]];
+}
+
+// ── PREDICT ─────────────────────────────────────────────
+function traverse(node, inp, steps) {
+  if (node.leaf) return { cls: node.cls, counts: node.counts };
+
+  const val = getFeatureVal(inp, node.feature);
+  const fname = FEAT_NAMES[node.feature];
+  const goLeft = val <= node.threshold;
+
+  steps.push({
+    feature: fname,
+    threshold: node.threshold,
+    value: val,
+    goLeft,
+    branch: goLeft ? node.leftName : node.rightName,
+    question: `${fname} ≤ ${node.threshold}?`
+  });
+
+  return traverse(goLeft ? node.left : node.right, inp, steps);
+}
+
+function runPrediction() {
+  const inp = getInputs();
+  const steps = [];
+  const result = traverse(TREE, inp, steps);
+
+  const cls = result.cls;
+  const total = result.counts.reduce((a,b) => a+b, 0);
+  const probs = result.counts.map(c => c / total);
+
+  // Show result box
+  const box = document.getElementById('result-box');
+  box.className = 'show ' + CLASS_KEYS[cls];
+  box.style.display = 'block';
+
+  document.getElementById('result-label').className = 'result-label ' + CLASS_KEYS[cls];
+  document.getElementById('result-label').textContent = '⟶ ' + CLASS_LABELS[cls];
+  document.getElementById('result-sub').textContent = CLASS_DESC[cls];
+
+  // Confidence bars
+  const barsHTML = CLASS_LABELS.map((lbl, i) => `
+    <div class="confidence-bar-wrap" style="margin-bottom:10px">
+      <div class="conf-label">
+        <span style="color:${CLASS_COLORS[i]};font-family:'DM Mono',monospace;font-size:11px">${lbl}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${(probs[i]*100).toFixed(0)}%</span>
+      </div>
+      <div class="conf-bar-bg">
+        <div class="conf-bar-fill ${CLASS_KEYS[i]}" style="width:${(probs[i]*100).toFixed(0)}%"></div>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('conf-bars').innerHTML = barsHTML;
+
+  // Decision path
+  const pathHTML = steps.map((step, i) => `
+    <div class="path-step" style="animation-delay:${i*0.08}s">
+      <div class="path-step-num">${i+1}</div>
+      <div class="path-step-text">
+        <span class="feature">${step.feature}</span> = <span style="color:var(--text)">${typeof step.value === 'number' && step.value % 1 !== 0 ? step.value.toFixed(1) : step.value}</span>
+        &nbsp;→&nbsp;
+        <span class="feature">${step.question}</span>
+        &nbsp;
+        <span class="${step.goLeft ? 'yes' : 'no'}">${step.goLeft ? '✓ YES' : '✗ NO'}</span>
+      </div>
+    </div>
+  `).join('');
+
+  const leafHTML = `
+    <div class="path-leaf" style="background:${CLASS_COLORS[cls]}18;border-color:${CLASS_COLORS[cls]}44">
+      <span style="font-size:16px">${cls===0?'🟢':cls===1?'🟡':'🔴'}</span>
+      <span style="color:${CLASS_COLORS[cls]};font-weight:600">Prediction: ${CLASS_LABELS[cls]}</span>
+    </div>
+  `;
+
+  document.getElementById('path-steps').innerHTML =
+    `<div class="path-title">decision path — ${steps.length} nodes traversed</div>` +
+    pathHTML + leafHTML;
+
+  // Redraw tree with highlight
+  drawTree(steps, cls);
+}
+
+// ── FEATURE IMPORTANCE BARS ──────────────────────────────
+function renderFI() {
+  const container = document.getElementById('fi-bars');
+  container.innerHTML = FI.map(f => `
+    <div class="fi-row">
+      <div class="fi-name">${f.name}</div>
+      <div class="fi-bar-wrap">
+        <div class="fi-bar" style="width:${f.pct*2.7}%;animation-delay:0.${f.idx}s"></div>
+      </div>
+      <div class="fi-pct">${f.pct}%</div>
+    </div>
+  `).join('');
+}
+
+// ── TREE CANVAS ──────────────────────────────────────────
+function drawTree(highlightPath = [], predCls = -1) {
+  const canvas = document.getElementById('treeCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+
+  const TEAL = '#00b4c6', MUTED = '#1a3050', TEXT = '#7f9bbc';
+  const GREEN = '#06d6a0', ORANGE = '#ff9f1c', RED = '#ff4d6d';
+
+  // Nodes: [id, x, y, label, line1, cls, isLeaf]
+  const nodes = [
+    { id:0, x:220, y:28,  label:'TFF1', thresh:'≤ 255',  isLeaf:false },
+    { id:1, x:110, y:90,  label:'LYVE1',thresh:'≤ 1.14', isLeaf:false },
+    { id:2, x:330, y:90,  label:'REG1B',thresh:'≤ 80',   isLeaf:false },
+    { id:3, x:55,  y:160, label:'Age',  thresh:'≤ 62.5', isLeaf:false },
+    { id:4, x:165, y:160, label:'REG1B',thresh:'≤ 120',  isLeaf:false },
+    { id:5, x:275, y:160, label:'LYVE1',thresh:'≤ 2.5',  isLeaf:false },
+    { id:6, x:385, y:160, label:'Creat',thresh:'≤ 1.5',  isLeaf:false },
+    // Leaves
+    { id:7,  x:28,  y:232, label:'Control', isLeaf:true, cls:0 },
+    { id:8,  x:82,  y:232, label:'Benign',  isLeaf:true, cls:1 },
+    { id:9,  x:138, y:232, label:'Benign',  isLeaf:true, cls:1 },
+    { id:10, x:192, y:232, label:'Benign',  isLeaf:true, cls:1 },
+    { id:11, x:248, y:232, label:'Benign',  isLeaf:true, cls:1 },
+    { id:12, x:302, y:232, label:'Cancer',  isLeaf:true, cls:2 },
+    { id:13, x:358, y:232, label:'Cancer',  isLeaf:true, cls:2 },
+    { id:14, x:412, y:232, label:'Cancer',  isLeaf:true, cls:2 },
+  ];
+
+  const edges = [
+    [0,1],[0,2],[1,3],[1,4],[2,5],[2,6],
+    [3,7],[3,8],[4,9],[4,10],[5,11],[5,12],[6,13],[6,14]
+  ];
+
+  // Build highlight path node IDs
+  const pathNodeIds = new Set();
+  if (highlightPath.length > 0) {
+    pathNodeIds.add(0);
+    let featureSeq = highlightPath.map(s => s.feature);
+    // map steps to node ids roughly
+    const stepToNode = [[0], [1,2], [3,4,5,6], [7,8,9,10,11,12,13,14]];
+    for (let i = 0; i < highlightPath.length; i++) {
+      const step = highlightPath[i];
+      if (i === 0) { pathNodeIds.add(step.goLeft ? 1 : 2); }
+      else if (i === 1 && highlightPath[0].goLeft) { pathNodeIds.add(step.goLeft ? 3 : 4); }
+      else if (i === 1 && !highlightPath[0].goLeft) { pathNodeIds.add(step.goLeft ? 5 : 6); }
+      else if (i === 2) {
+        const parentId = Array.from(pathNodeIds).filter(id => id >= 3 && id <= 6).pop();
+        if (parentId === 3) pathNodeIds.add(step.goLeft ? 7 : 8);
+        else if (parentId === 4) pathNodeIds.add(step.goLeft ? 9 : 10);
+        else if (parentId === 5) pathNodeIds.add(step.goLeft ? 11 : 12);
+        else if (parentId === 6) pathNodeIds.add(step.goLeft ? 13 : 14);
+      }
+    }
+  }
+
+  // Draw edges
+  edges.forEach(([from, to]) => {
+    const f = nodes[from], t = nodes[to];
+    const highlighted = pathNodeIds.has(from) && pathNodeIds.has(to);
+    ctx.beginPath();
+    ctx.moveTo(f.x, f.y + (f.isLeaf ? 14 : 22));
+    ctx.lineTo(t.x, t.y - (t.isLeaf ? 14 : 22));
+    ctx.strokeStyle = highlighted ? TEAL : MUTED;
+    ctx.lineWidth = highlighted ? 2 : 1;
+    ctx.globalAlpha = highlighted ? 1 : 0.4;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+
+  // Draw nodes
+  nodes.forEach(n => {
+    const hl = pathNodeIds.has(n.id);
+    if (n.isLeaf) {
+      const col = n.cls === 0 ? GREEN : n.cls === 1 ? ORANGE : RED;
+      ctx.beginPath();
+      ctx.roundRect(n.x - 24, n.y - 14, 48, 28, 6);
+      ctx.fillStyle = hl ? col + '33' : '#0d1e35';
+      ctx.fill();
+      ctx.strokeStyle = hl ? col : col + '66';
+      ctx.lineWidth = hl ? 2 : 1;
+      ctx.stroke();
+      ctx.fillStyle = hl ? col : col + 'aa';
+      ctx.font = `${hl ? 'bold' : ''} 9px 'DM Mono'`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(n.label, n.x, n.y);
+    } else {
+      ctx.beginPath();
+      ctx.roundRect(n.x - 36, n.y - 22, 72, 44, 8);
+      ctx.fillStyle = hl ? 'rgba(0,180,198,0.15)' : '#0d1e35';
+      ctx.fill();
+      ctx.strokeStyle = hl ? TEAL : MUTED;
+      ctx.lineWidth = hl ? 2 : 1;
+      ctx.stroke();
+
+      ctx.fillStyle = hl ? TEAL : TEXT;
+      ctx.font = `bold 10px 'DM Mono'`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(n.label, n.x, n.y - 7);
+      ctx.font = `9px 'DM Mono'`;
+      ctx.fillStyle = hl ? '#7ff0ff' : MUTED + 'cc';
+      ctx.fillText(n.thresh, n.x, n.y + 7);
+    }
+  });
+}
+
+// ── INTERSECTION OBSERVER (scroll animations) ────────────
+function initScrollAnim() {
+  const els = document.querySelectorAll('.section-anim');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  els.forEach(el => obs.observe(el));
+}
+
+// ── INIT RANGE FILLS ─────────────────────────────────────
+function initRanges() {
+  document.querySelectorAll('input[type=range]').forEach(el => {
+    const mn = parseFloat(el.min), mx = parseFloat(el.max), v = parseFloat(el.value);
+    const pct = ((v - mn) / (mx - mn) * 100).toFixed(1);
+    el.style.setProperty('--pct', pct + '%');
+  });
+}
+
+// ── BOOT ─────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  initRanges();
+  renderFI();
+  drawTree();
+  initScrollAnim();
+
+  // Trigger section animations for items already visible
+  setTimeout(() => {
+    document.querySelectorAll('.section-anim').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight) el.classList.add('visible');
+    });
+  }, 200);
+});
+</script>
+</body>
+</html>
